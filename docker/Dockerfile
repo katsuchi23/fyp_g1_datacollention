@@ -42,8 +42,11 @@ RUN rosdep init || true
 RUN rosdep update
 
 RUN apt install -y libcgal-dev libcgal-qt5-dev
-RUN apt-get install pcl-tools meshlab
+RUN apt-get install -y ros-noetic-cv-bridge ros-noetic-pcl-conversions
 
+RUN apt-get install -y pcl-tools meshlab
+
+RUN apt-get install -y ros-noetic-realsense2-camera ros-noetic-realsense2-description
     
 # -----------------------------------------------------
 # Create developer user

@@ -72,6 +72,8 @@ Dr. Fu Zhang < fuzhang@hku.hk >.
 #include <sensor_msgs/PointCloud2.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
+#include <tf2_ros/static_transform_broadcaster.h>
+#include <geometry_msgs/TransformStamped.h>
 
 #include <geometry_msgs/Vector3.h>
 #include <FOV_Checker/FOV_Checker.h>
@@ -223,8 +225,7 @@ public:
     double m_odom_to_world_rot_x = 180.0;  // Roll rotation in degrees
     double m_odom_to_world_rot_y = 0.0;    // Pitch rotation in degrees
     double m_odom_to_world_rot_z = 0.0;    // Yaw rotation in degrees
-    tf::TransformBroadcaster m_static_tf_broadcaster;
-    ros::Timer m_odom_tf_timer;  // Timer for periodic odom->world TF broadcast
+    tf2_ros::StaticTransformBroadcaster m_static_tf_broadcaster;
 
     Offline_map_recorder m_mvs_recorder;
 
@@ -436,9 +437,9 @@ public:
         m_lio_state_fp = fopen( std::string(m_map_output_dir).append("/lic_lio.log").c_str(), "w+");
         m_lio_costtime_fp = fopen(std::string(m_map_output_dir).append("/lic_lio_costtime.log").c_str(), "w+");
         
-        // Start a timer to broadcast odom->world transform at 100Hz
-        // This ensures the transform is always available for TF lookups
-        m_odom_tf_timer = m_ros_node_handle.createTimer(ros::Duration(0.01), &R3LIVE::odom_tf_timer_callback, this);
+        // Publish static transform from odom to world once at startup
+        // Using StaticTransformBroadcaster makes it available for all timestamps
+        broadcast_odom_to_world_tf_static();
         
         m_thread_pool_ptr->commit_task(&R3LIVE::service_LIO_update, this);
              
@@ -464,8 +465,7 @@ public:
     void lasermap_fov_segment();
     void feat_points_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg_in);
     void wait_render_thread_finish();
-    void broadcast_odom_to_world_tf(const ros::Time& timestamp);
-    void odom_tf_timer_callback(const ros::TimerEvent& event);
+    void broadcast_odom_to_world_tf_static();
     bool get_pointcloud_data_from_ros_message(sensor_msgs::PointCloud2::ConstPtr & msg, pcl::PointCloud<pcl::PointXYZINormal> & pcl_pc);
     int service_LIO_update();
     void publish_render_pts( ros::Publisher &pts_pub, Global_map &m_map_rgb_pts );

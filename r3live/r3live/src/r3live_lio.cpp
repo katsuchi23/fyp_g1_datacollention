@@ -224,9 +224,10 @@ void R3LIVE::RGBpointBodyToWorld( PointType const *const pi, pcl::PointXYZI *con
     int reflection_map = intensity * 10000;
 }
 
-// Broadcast static transform from odom to world frame
+// Broadcast static transform from odom to world frame once at startup
 // This corrects the lidar mounting orientation (e.g., upside-down mounting)
-void R3LIVE::broadcast_odom_to_world_tf(const ros::Time& timestamp)
+// Using StaticTransformBroadcaster makes it available for all timestamps (past, present, future)
+void R3LIVE::broadcast_odom_to_world_tf_static()
 {
     // Convert rotation angles from degrees to radians
     double roll = m_odom_to_world_rot_x * M_PI / 180.0;
@@ -237,23 +238,28 @@ void R3LIVE::broadcast_odom_to_world_tf(const ros::Time& timestamp)
     tf::Quaternion q;
     q.setRPY(roll, pitch, yaw);
     
-    // Create transform: odom is the parent frame, world is the child frame
-    // Position is zero since both frames share the same origin (lidar initial position)
-    tf::Transform odom_to_world_transform;
-    odom_to_world_transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
-    odom_to_world_transform.setRotation(q);
+    // Create the static transform message
+    geometry_msgs::TransformStamped static_transform;
+    static_transform.header.stamp = ros::Time::now();
+    static_transform.header.frame_id = "odom";
+    static_transform.child_frame_id = "world";
     
-    // Broadcast the static transform from odom to world
-    m_static_tf_broadcaster.sendTransform(
-        tf::StampedTransform(odom_to_world_transform, timestamp, "odom", "world")
-    );
-}
-
-// Timer callback to periodically broadcast odom->world transform
-// This ensures the transform is always available in the TF buffer
-void R3LIVE::odom_tf_timer_callback(const ros::TimerEvent& event)
-{
-    broadcast_odom_to_world_tf(ros::Time::now());
+    // Set translation (zero - both frames share the same origin)
+    static_transform.transform.translation.x = 0.0;
+    static_transform.transform.translation.y = 0.0;
+    static_transform.transform.translation.z = 0.0;
+    
+    // Set rotation
+    static_transform.transform.rotation.x = q.x();
+    static_transform.transform.rotation.y = q.y();
+    static_transform.transform.rotation.z = q.z();
+    static_transform.transform.rotation.w = q.w();
+    
+    // Publish the static transform - this will be available for all timestamps
+    m_static_tf_broadcaster.sendTransform(static_transform);
+    
+    ROS_INFO("Published static transform: odom -> world (roll=%.1f°, pitch=%.1f°, yaw=%.1f°)", 
+             m_odom_to_world_rot_x, m_odom_to_world_rot_y, m_odom_to_world_rot_z);
 }
 
 int R3LIVE::get_cube_index( const int &i, const int &j, const int &k )
@@ -1051,7 +1057,8 @@ int R3LIVE::service_LIO_update()
             geometry_msgs::Quaternion geoQuat = tf::createQuaternionMsgFromRollPitchYaw( euler_cur( 0 ), euler_cur( 1 ), euler_cur( 2 ) );
             odomAftMapped.header.frame_id = "world";
             odomAftMapped.child_frame_id = "aft_mapped";
-            odomAftMapped.header.stamp = ros::Time::now(); // ros::Time().fromSec(last_timestamp_lidar);
+            // Use lidar timestamp for consistency with point clouds and rosbag playback
+            odomAftMapped.header.stamp = ros::Time().fromSec(Measures.lidar_end_time);
             odomAftMapped.pose.pose.orientation.x = geoQuat.x;
             odomAftMapped.pose.pose.orientation.y = geoQuat.y;
             odomAftMapped.pose.pose.orientation.z = geoQuat.z;
@@ -1064,8 +1071,9 @@ int R3LIVE::service_LIO_update()
 
             // Broadcast TF transform: world -> aft_mapped
             // Note: odom -> world is broadcast by a timer at high frequency (see odom_tf_timer_callback)
+            // Use lidar timestamp to match the odometry message and ensure TF consistency
             static tf::TransformBroadcaster br;
-            ros::Time current_time = ros::Time::now();
+            ros::Time current_time = ros::Time().fromSec(Measures.lidar_end_time);
             
             tf::Transform                   transform;
             tf::Quaternion                  q;

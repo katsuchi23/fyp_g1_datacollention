@@ -249,6 +249,13 @@ void R3LIVE::broadcast_odom_to_world_tf(const ros::Time& timestamp)
     );
 }
 
+// Timer callback to periodically broadcast odom->world transform
+// This ensures the transform is always available in the TF buffer
+void R3LIVE::odom_tf_timer_callback(const ros::TimerEvent& event)
+{
+    broadcast_odom_to_world_tf(ros::Time::now());
+}
+
 int R3LIVE::get_cube_index( const int &i, const int &j, const int &k )
 {
     return ( i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k );
@@ -1055,14 +1062,11 @@ int R3LIVE::service_LIO_update()
 
             pubOdomAftMapped.publish( odomAftMapped );
 
-            // Broadcast TF transforms: odom -> world -> aft_mapped
+            // Broadcast TF transform: world -> aft_mapped
+            // Note: odom -> world is broadcast by a timer at high frequency (see odom_tf_timer_callback)
             static tf::TransformBroadcaster br;
-            ros::Time current_time = ros::Time().fromSec( Measures.lidar_end_time );
+            ros::Time current_time = ros::Time::now();
             
-            // 1. Broadcast static transform from odom to world (fixes lidar mounting orientation)
-            broadcast_odom_to_world_tf(current_time);
-            
-            // 2. Broadcast transform from world to aft_mapped (LIO state estimation result)
             tf::Transform                   transform;
             tf::Quaternion                  q;
             transform.setOrigin(

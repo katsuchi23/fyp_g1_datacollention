@@ -218,6 +218,12 @@ public:
     pcl::VoxelGrid<PointType> downSizeFilterSurf;
     pcl::VoxelGrid<PointType> downSizeFilterMap;
     std::vector<double> m_initial_pose;
+    
+    // Static transform from odom to world frame (for fixing lidar mounting orientation)
+    double m_odom_to_world_rot_x = 180.0;  // Roll rotation in degrees
+    double m_odom_to_world_rot_y = 0.0;    // Pitch rotation in degrees
+    double m_odom_to_world_rot_z = 0.0;    // Yaw rotation in degrees
+    tf::TransformBroadcaster m_static_tf_broadcaster;
 
     Offline_map_recorder m_mvs_recorder;
 
@@ -391,6 +397,15 @@ public:
             get_ros_parameter( m_ros_node_handle, "r3live_lio/long_rang_pt_dis", m_long_rang_pt_dis, 500.0 );
             get_ros_parameter( m_ros_node_handle, "r3live_lio/publish_feature_map", m_if_publish_feature_map, false );
             get_ros_parameter( m_ros_node_handle, "r3live_lio/lio_update_point_step", m_lio_update_point_step, 1 );
+            // Load odom to world static transform parameters (for fixing lidar mounting orientation)
+            get_ros_parameter( m_ros_node_handle, "r3live_lio/odom_to_world_rot_x", m_odom_to_world_rot_x, 180.0 );
+            get_ros_parameter( m_ros_node_handle, "r3live_lio/odom_to_world_rot_y", m_odom_to_world_rot_y, 0.0 );
+            get_ros_parameter( m_ros_node_handle, "r3live_lio/odom_to_world_rot_z", m_odom_to_world_rot_z, 0.0 );
+            
+            // Print loaded odom to world rotation parameters
+            cout << ANSI_COLOR_GREEN_BOLD << "Odom to World rotation (deg): Roll=" << m_odom_to_world_rot_x 
+                 << ", Pitch=" << m_odom_to_world_rot_y << ", Yaw=" << m_odom_to_world_rot_z 
+                 << ANSI_COLOR_RESET << endl;
         }
         if ( 1 )
         {
@@ -443,6 +458,7 @@ public:
     void lasermap_fov_segment();
     void feat_points_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg_in);
     void wait_render_thread_finish();
+    void broadcast_odom_to_world_tf(const ros::Time& timestamp);
     bool get_pointcloud_data_from_ros_message(sensor_msgs::PointCloud2::ConstPtr & msg, pcl::PointCloud<pcl::PointXYZINormal> & pcl_pc);
     int service_LIO_update();
     void publish_render_pts( ros::Publisher &pts_pub, Global_map &m_map_rgb_pts );

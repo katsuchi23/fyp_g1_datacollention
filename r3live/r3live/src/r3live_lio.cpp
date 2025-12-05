@@ -224,6 +224,31 @@ void R3LIVE::RGBpointBodyToWorld( PointType const *const pi, pcl::PointXYZI *con
     int reflection_map = intensity * 10000;
 }
 
+// Broadcast static transform from odom to world frame
+// This corrects the lidar mounting orientation (e.g., upside-down mounting)
+void R3LIVE::broadcast_odom_to_world_tf(const ros::Time& timestamp)
+{
+    // Convert rotation angles from degrees to radians
+    double roll = m_odom_to_world_rot_x * M_PI / 180.0;
+    double pitch = m_odom_to_world_rot_y * M_PI / 180.0;
+    double yaw = m_odom_to_world_rot_z * M_PI / 180.0;
+    
+    // Create quaternion from roll-pitch-yaw (XYZ Euler angles)
+    tf::Quaternion q;
+    q.setRPY(roll, pitch, yaw);
+    
+    // Create transform: odom is the parent frame, world is the child frame
+    // Position is zero since both frames share the same origin (lidar initial position)
+    tf::Transform odom_to_world_transform;
+    odom_to_world_transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
+    odom_to_world_transform.setRotation(q);
+    
+    // Broadcast the static transform from odom to world
+    m_static_tf_broadcaster.sendTransform(
+        tf::StampedTransform(odom_to_world_transform, timestamp, "odom", "world")
+    );
+}
+
 int R3LIVE::get_cube_index( const int &i, const int &j, const int &k )
 {
     return ( i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k );
@@ -1030,7 +1055,14 @@ int R3LIVE::service_LIO_update()
 
             pubOdomAftMapped.publish( odomAftMapped );
 
+            // Broadcast TF transforms: odom -> world -> aft_mapped
             static tf::TransformBroadcaster br;
+            ros::Time current_time = ros::Time().fromSec( Measures.lidar_end_time );
+            
+            // 1. Broadcast static transform from odom to world (fixes lidar mounting orientation)
+            broadcast_odom_to_world_tf(current_time);
+            
+            // 2. Broadcast transform from world to aft_mapped (LIO state estimation result)
             tf::Transform                   transform;
             tf::Quaternion                  q;
             transform.setOrigin(
@@ -1040,7 +1072,7 @@ int R3LIVE::service_LIO_update()
             q.setY( odomAftMapped.pose.pose.orientation.y );
             q.setZ( odomAftMapped.pose.pose.orientation.z );
             transform.setRotation( q );
-            br.sendTransform( tf::StampedTransform( transform, ros::Time().fromSec( Measures.lidar_end_time ), "world", "/aft_mapped" ) );
+            br.sendTransform( tf::StampedTransform( transform, current_time, "world", "/aft_mapped" ) );
 
             msg_body_pose.header.stamp = ros::Time::now();
             msg_body_pose.header.frame_id = "/camera_odom_frame";

@@ -45,3 +45,8 @@ r3live_lio:
    filter_size_surf: 0.30
    filter_size_surf_z: 0.30
    filter_size_map: 0.30
+   # Static transform from odom to world frame (to fix upside-down lidar mounting)
+   # Rotation in degrees: applied as roll-pitch-yaw (XYZ Euler angles)
+   odom_to_world_rot_x: 180.0  # Roll rotation in degrees [default = 180.0]
+   odom_to_world_rot_y: 0.0    # Pitch rotation in degrees [default = 0.0]
+   odom_to_world_rot_z: 0.0    # Yaw rotation in degrees [default = 0.0]

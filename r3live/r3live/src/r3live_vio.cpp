@@ -495,7 +495,7 @@ void R3LIVE::publish_camera_odom( std::shared_ptr< Image_frame > &image, double 
     vec_3              odom_t = image->m_pose_w2c_t;
     nav_msgs::Odometry camera_odom;
     camera_odom.header.frame_id = "world";
-    camera_odom.child_frame_id = "/aft_mapped";
+    camera_odom.child_frame_id = "aft_mapped";
     camera_odom.header.stamp = ros::Time::now(); // ros::Time().fromSec(last_timestamp_lidar);
     camera_odom.pose.pose.orientation.x = odom_q.x();
     camera_odom.pose.pose.orientation.y = odom_q.y();
